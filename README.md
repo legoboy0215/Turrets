@@ -1,7 +1,7 @@
-# Turret
+# Turrets
 
 ### This is a port of a [Bukkit Turrets plugin](https://dev.bukkit.org/projects/turrets). I just ported it and rewrote some important stuff. 
-A complex Turret plugin for PocketMine that is WIP. Feel free to submit pull requests to improve this plugin.
+A complex Turrets plugin for PocketMine that is WIP. Feel free to submit pull requests to improve this plugin.
 
 Tools used to make this port possible:
 
