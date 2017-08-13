@@ -24,7 +24,7 @@ class TurretsCommand extends Command implements PluginIdentifiableCommand{
 		return $this->plugin;
 	}
 
-	public function execute(CommandSender $sender, $commandLabel, array $args){
+	public function execute(CommandSender $sender, $commandLabel, array $args) : bool{
 		if(count($args) > 0){
 			$subCommand = strtolower($args[0]);
 			if($subCommand === 'save'){
