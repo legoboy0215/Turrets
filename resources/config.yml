@@ -1,0 +1,26 @@
+## Default Turrets Configuration
+
+# Upgrade Tiers
+#
+# Names of tiers must be placeable blocks, except for "default" (chosen if the block under a turret's post matches none of the rest)
+#
+# firingInterval: Delay between shots (in ticks)
+# range: Maximum distance for finding targets
+# accuracy: Lower values are more accurate
+tiers:
+  default:
+    firingInterval: 40
+    range: 20.0
+    accuracy: 3.0
+  iron_block:
+    firingInterval: 20
+    range: 40.0
+    accuracy: 2.0
+  gold_block:
+    firingInterval: 10
+    range: 40.0
+    accuracy: 1.0
+  diamond_block:
+    firingInterval: 5
+    range: 50.0
+    accuracy: 0.5
