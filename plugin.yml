@@ -1,5 +1,5 @@
 name: Turrets
-description: "A complex turret plugin that is WIP"
+description: "A complex turret plugin that is abandoned"
 author: Legoboy
 main: Legoboy\Turrets\TurretsPlugin
 version: "0.1dev"
