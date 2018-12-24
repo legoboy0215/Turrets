@@ -12,20 +12,25 @@ use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\entity\EntityDamageByChildEntityEvent;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\entity\EntityDamageEvent;
-use pocketmine\event\entity\EntityDespawnEvent;
+//use pocketmine\event\entity\EntityDespawnEvent;
 use pocketmine\event\entity\EntitySpawnEvent;
-use pocketmine\event\entity\ProjectileHitEvent;
+//use pocketmine\event\entity\ProjectileHitEvent;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerInteractEvent;
+use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\item\ItemIds;
 use pocketmine\level\Position;
-use pocketmine\math\Vector3;
+use pocketmine\math\Facing;
 use pocketmine\Player;
 use pocketmine\utils\TextFormat;
 
 class TurretsListener implements Listener{
+
 	/** @var TurretsPlugin */
 	private $plugin;
+
+	/** @var int[] */
+	private $interactTimes = [];
 
 	public function __construct(TurretsPlugin $plugin){
 		$this->plugin = $plugin;
@@ -35,12 +40,19 @@ class TurretsListener implements Listener{
 	 * @param PlayerInteractEvent $event
 	 * @priority MONITOR
 	 * @ignoreCancelled true
+	 * @throws \InvalidStateException
 	 */
 	public function onPlayerInteract(PlayerInteractEvent $event){
-		if(($event->getAction() === PlayerInteractEvent::RIGHT_CLICK_BLOCK) && ($event->getFace() === Vector3::SIDE_UP)){
+		if(($event->getAction() === PlayerInteractEvent::RIGHT_CLICK_BLOCK) && ($event->getFace() === Facing::UP)){
+			$player = $event->getPlayer();
+
+			if (isset($this->interactTimes[$player->getId()]) && (time() - $this->interactTimes[$player->getId()]) < 1) {
+				return;
+			} else {
+				$this->interactTimes[$player->getId()] = time();
+			}
 			$clickedBlock = $event->getBlock();
 			$itemInHand = $event->getItem();
-			$player = $event->getPlayer();
 
 			if(($clickedBlock->getId() === TurretsPlugin::POST_MATERIAL) && ($itemInHand->getId() === ItemIds::MINECART)){
 				$hasPermission = $player->hasPermission('turrets.create') || $player->isOp();
@@ -48,7 +60,6 @@ class TurretsListener implements Listener{
 					$this->plugin->notifyPlayer($player, TurretsMessage::NO_CREATE_PERM);
 					return;
 				}
-
 				if($this->plugin->canBuildTurret($clickedBlock)){
 					$this->plugin->addTurret($clickedBlock, $player->getName());
 					$this->plugin->notifyPlayer($player, TurretsMessage::TURRET_CREATED);
@@ -63,11 +74,9 @@ class TurretsListener implements Listener{
 		$entity = $event->getEntity();
 		if($entity instanceof EntityTurret){
 			var_dump('Turret spawned!');
-			if($entity->namedtag->offsetExists('Hash')){
-				if(($turret = $this->plugin->getTurretFromHash($entity->namedtag->offsetGet('Hash'))) !== null){
-					$turret->setEntity($entity->getId());
-					$entity->setTurret($turret);
-				}
+			if(($turret = $this->plugin->getTurretFromHash($entity->getHash())) !== null){
+				$turret->setEntity($entity->getId());
+				$entity->setTurret($turret);
 			}
 		}
 	}
@@ -91,21 +100,26 @@ class TurretsListener implements Listener{
 	 * @ignoreCancelled true
 	 */
 	public function onVehicleDestroy(EntityDamageEvent $event){
+		$entity = $event->getEntity();
 		if($event instanceof EntityDamageByChildEntityEvent){
 			$arrow = $event->getChild();
 			$damager = $event->getDamager();
-			if($arrow instanceof TurretProjectile && $damager instanceof EntityTurret){
-				$event->getEntity()->sendPopup(TextFormat::AQUA . 'Hit!');
+			if($arrow instanceof TurretProjectile && $damager instanceof EntityTurret && $entity instanceof Player){
+				$entity->sendPopup(TextFormat::AQUA . 'Hit!');
 			}
 			return;
 		}
 		if(!($event instanceof EntityDamageByEntityEvent)){
 			return;
 		}
-		$entity = $event->getEntity();
 
 		if($entity instanceof Minecart && $entity instanceof EntityTurret){
 			$turret = $entity->getTurret();
+			if ($turret === null) {
+				$entity->flagForDespawn();
+				$entity->despawnFromAll();
+				return;
+			}
 
 			if(isset($this->plugin->getTurrets()[$turret->getHash()])){
 				$attacker = $event->getDamager();
@@ -113,7 +127,7 @@ class TurretsListener implements Listener{
 					$hasPermission = $attacker->hasPermission("turrets.destroy");
 					if(!$hasPermission){
 						$this->plugin->notifyPlayer($attacker, TurretsMessage::NO_DESTROY_PERM);
-						$event->setDamage(0);
+						$event->setBaseDamage(0);
 						$event->setCancelled(true);
 						return;
 					}
@@ -138,12 +152,10 @@ class TurretsListener implements Listener{
 		$blockId = $block->getId();
 
 		if($blockId === TurretsPlugin::POST_MATERIAL){
-			$postLocation = $block->asPosition();
-			$turret = $this->plugin->getTurret($postLocation);
+			$turret = $this->plugin->getTurret($block);
 
 			if($turret !== null){
-				$hasPermission = $player->hasPermission('turrets.destroy');
-				if(!$hasPermission){
+				if(!$player->hasPermission('turrets.destroy')){
 					$this->plugin->notifyPlayer($player, TurretsMessage::NO_DESTROY_PERM);
 					$event->setCancelled(true);
 					return;
@@ -163,12 +175,18 @@ class TurretsListener implements Listener{
 	 */
 	public function afterBlockBreak(BlockBreakEvent $event){
 		$block = $event->getBlock();
+		$pos = Position::fromObject($block->add(0, 1, 0), $block->getLevel());
+		if(($turret = $this->plugin->getTurret($pos)) instanceof Turret){
+			$prevTier = $turret->getUpgradeTier();
+			$newTier = $turret->updateUpgradeTier(0);
 
-		$postLocation = Position::fromObject($block->add(0, 1, 0), $block->getLevel());
-		$turret = $this->plugin->getTurret($postLocation);
-
-		if($turret instanceof Turret){
-			$turret->updateUpgradeTier();
+			if($newTier !== $prevTier){
+				$player = $event->getPlayer();
+				$this->plugin->notifyPlayer($player, TurretsMessage::TURRET_DOWNGRADED);
+				$this->plugin->notifyPlayer($player, "Firing interval: " . TextFormat::AQUA . $newTier->getFiringInterval());
+				$this->plugin->notifyPlayer($player, "Range: " . TextFormat::AQUA . $newTier->getRange());
+				$this->plugin->notifyPlayer($player, "Accuracy: " . TextFormat::AQUA . $newTier->getAccuracy());
+			}
 		}
 	}
 
@@ -186,16 +204,22 @@ class TurretsListener implements Listener{
 
 		if($turret instanceof Turret){
 			$prevTier = $turret->getUpgradeTier();
-			$newTier = $turret->updateUpgradeTierId($block->getId());
-
-			echo "Upgrading tier...\n";
+			$newTier = $turret->updateUpgradeTier($block->getId());
 
 			if($newTier !== $prevTier){
 				$this->plugin->notifyPlayer($player, TurretsMessage::TURRET_UPGRADED);
-				$this->plugin->notifyPlayer($player, "Firing interval (lower is faster): " . TextFormat::AQUA . $newTier->getFiringInterval());
+				$this->plugin->notifyPlayer($player, "Firing interval: " . TextFormat::AQUA . $newTier->getFiringInterval());
 				$this->plugin->notifyPlayer($player, "Range: " . TextFormat::AQUA . $newTier->getRange());
-				$this->plugin->notifyPlayer($player, "Accuracy (lower is more accurate): " . TextFormat::AQUA . $newTier->getAccuracy());
+				$this->plugin->notifyPlayer($player, "Accuracy: " . TextFormat::AQUA . $newTier->getAccuracy());
 			}
+		}
+	}
+
+	public function onLeave(PlayerQuitEvent $event) {
+		$playerId = $event->getPlayer()->getId();
+		if (isset($this->interactTimes[$playerId])) {
+			unset($this->interactTimes[$playerId]);
+			echo "Unset $playerId!\n";
 		}
 	}
 }

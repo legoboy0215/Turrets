@@ -8,16 +8,14 @@ use Legoboy\Turrets\upgrade\UpgradeTier;
 use pocketmine\entity\Entity;
 use pocketmine\level\Level;
 use pocketmine\level\Position;
-use pocketmine\nbt\tag\CompoundTag;
+use pocketmine\math\Vector3;
 use pocketmine\nbt\tag\DoubleTag;
-use pocketmine\nbt\tag\FloatTag;
 use pocketmine\nbt\tag\ListTag;
-use pocketmine\nbt\tag\StringTag;
 
 class Turret{
 
 	/** @var Position */
-	private $location;
+	private $position;
 
 	/** @var string */
 	private $ownerName;
@@ -31,13 +29,13 @@ class Turret{
 	/** @var UpgradeTier */
 	private $upgradeTier;
 
-	public function __construct(Position $location, $ownerName, TurretsPlugin $plugin, bool $createEntity = false){
-		$this->location = $location;
+	public function __construct(Position $position, $ownerName, TurretsPlugin $plugin, bool $createEntity = false){
+		$this->position = $position;
 		$this->ownerName = $ownerName;
 		$this->plugin = $plugin;
 
 		if($createEntity){
-			$entity = Entity::createEntity('EntityTurret', $location->getLevel(), $this->generateNBT());
+			$entity = Entity::createEntity('EntityTurret', $position->getLevel(), $this->generateNBT());
 			if($entity instanceof EntityTurret){
 				$this->setEntity($entity->getId());
 				$entity->spawnToAll();
@@ -48,24 +46,12 @@ class Turret{
 		$this->initializeUpgradeTier();
 	}
 
-	public function getX(){
-		return $this->location->getX();
-	}
-
-	public function getY(){
-		return $this->location->getY();
-	}
-
-	public function getZ(){
-		return $this->location->getZ();
-	}
-
 	public function getLevel(){
-		return $this->location->getLevel();
+		return $this->position->getLevel();
 	}
 
-	public function getLocation() : Position{
-		return $this->location;
+	public function getPosition() : Position{
+		return $this->position;
 	}
 
 	public function getOwnerName() : string{
@@ -112,10 +98,10 @@ class Turret{
 	}
 
 	public function spawn(){
-		if(!($this->getEntity() instanceof EntityTurret)){
+		if(!(($entity = $this->getEntity()) instanceof EntityTurret)){
 			return false;
 		}
-		$this->getEntity()->spawnToAll();
+		$entity->spawnToAll();
 		return true;
 	}
 
@@ -131,14 +117,16 @@ class Turret{
 		$this->plugin->removeTurret($this, $despawn);
 	}
 
-	public function updateUpgradeTier() : UpgradeTier{
-		$baseBlock = $this->location->getLevel()->getBlock($this->location->subtract(0, 1, 0), false);
-		$this->upgradeTier = $this->getUpgradeTierById($baseBlock->getId());
+	public function updateUpgradeTier(int $blockId = -1) : UpgradeTier{
+		if ($blockId === -1) {
+			$blockId = $this->getLevel()->getBlock($this->getPosition()->subtract(0, 1, 0), false)->getId();
+		}
+		$this->upgradeTier = $this->getUpgradeTierById($blockId);
 		return $this->upgradeTier;
 	}
 
-	public function getUpgradeTierById(int $id) : UpgradeTier{
-		return $this->plugin->getUpgradeLadder()->getUpgradeTier($id);
+	public function getUpgradeTierById(int $blockId) : UpgradeTier{
+		return $this->plugin->getUpgradeLadder()->getUpgradeTier($blockId);
 	}
 
 	private function initializeUpgradeTier(){
@@ -155,36 +143,27 @@ class Turret{
 		if(!($object instanceof Turret)){
 			return false;
 		}
-		return $object->getLocation()->equals($this->location);
+		return $object->getPosition()->equals($this->position);
+	}
+
+	public static function hash(Vector3 $vector) : string{
+		return (string) Level::blockHash($vector->getX(), $vector->getY(), $vector->getZ());
 	}
 
 	public function getHash() : string{
-		return (string) Level::blockHash($this->location->getX(), $this->location->getY(), $this->location->getZ());
+		return self::hash($this->position);
 	}
 
 	public function generateNBT(){
-		return new CompoundTag("", [
-				new ListTag("Pos", [
-					new DoubleTag("", $this->location->getX()),
-					new DoubleTag("", $this->location->getY() + 0.45),
-					new DoubleTag("", $this->location->getZ())
-				]),
-				new ListTag("Motion", [
-					new DoubleTag("", 0),
-					new DoubleTag("", 0),
-					new DoubleTag("", 0)
-				]),
-				new ListTag("Rotation", [
-					new FloatTag("", 0),
-					new FloatTag("", 0)
-				]),
-				new StringTag("Hash", $this->getHash()),
-				new ListTag("Pivot", [
-					new DoubleTag("", $this->getX() + 0.5),
-					new DoubleTag("", $this->getY() + 1.3),
-					new DoubleTag("", $this->getZ() + 0.5),
-				])
-			]
+		$nbt = Entity::createBaseNBT(
+			$this->getPosition()->add(0, 0.45, 0)
 		);
+		$nbt->setString("Hash", $this->getHash());
+		$nbt->setTag(new ListTag("Pivot", [
+			new DoubleTag("", $this->position->getX() + 0.5),
+			new DoubleTag("", $this->position->getY() + 1.3),
+			new DoubleTag("", $this->position->getZ() + 0.5),
+		]));
+		return $nbt;
 	}
 }

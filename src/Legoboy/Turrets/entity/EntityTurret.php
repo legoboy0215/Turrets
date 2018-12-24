@@ -5,20 +5,17 @@ namespace Legoboy\Turrets\entity;
 use Legoboy\Turrets\targeting\TargetAssessment;
 use Legoboy\Turrets\Turret;
 use Legoboy\Turrets\TurretsPlugin;
-use Legoboy\Turrets\util\RayTraceUtils;
 
 use pocketmine\entity\Entity;
 use pocketmine\entity\Living;
-use pocketmine\level\Level;
 use pocketmine\math\Vector3;
+use pocketmine\math\VoxelRayTrace;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\nbt\tag\DoubleTag;
-use pocketmine\nbt\tag\FloatTag;
 use pocketmine\nbt\tag\ListTag;
-use pocketmine\nbt\tag\ShortTag;
 use pocketmine\nbt\tag\StringTag;
 
-class EntityTurret extends Minecart{
+class EntityTurret extends Minecart {
 
 	const REBOUND = 0.1;
 	const ITEM_SPAWN_DISTANCE = 1.2;
@@ -28,17 +25,8 @@ class EntityTurret extends Minecart{
 	/** @var Turret */
 	private $turret;
 
-	/** @var float */
-	private $pivotX;
-
-	/** @var float */
-	private $pivotY;
-
-	/** @var float */
-	private $pivotZ;
-
 	/** @var Vector3 */
-	private $pivotVector = null;
+	private $pivot = null;
 
 	/** @var int */
 	private $hash = null;
@@ -56,29 +44,24 @@ class EntityTurret extends Minecart{
 	private $targetSearchInterval = 40;
 
 	/** @var int */
-	private $lastTick = -1;
+	private $tickSum = 0;
 
-	public function __construct(Level $level, CompoundTag $nbt){
-		parent::__construct($level, $nbt);
-		if(!$nbt->offsetExists('Pivot') || !$nbt->offsetExists('Hash')){
+	protected function initEntity(CompoundTag $nbt) : void {
+		parent::initEntity($nbt);
+		if(!$nbt->hasTag("Pivot", ListTag::class) || !$nbt->hasTag("Hash", StringTag::class)){
 			throw new \InvalidArgumentException('NBT tag is invalid!');
 		}
-		$this->hash = (string) $nbt->offsetGet('Hash');
+		$this->hash = (string) $nbt->getString("Hash");
 
-		$this->pivotX = $nbt['Pivot'][0];
-		$this->pivotY = $nbt['Pivot'][1];
-		$this->pivotZ = $nbt['Pivot'][2];
-		$this->pivotVector = new Vector3($this->pivotX, $this->pivotY, $this->pivotZ);
+		$pivot = $nbt->getListTag("Pivot");
+		$this->pivot = new Vector3(...$pivot->getAllValues());
 
-		$this->setPosition($this->pivotVector);
-
-		echo "Entity turret constructor...\n";
+		$this->setPosition($this->pivot);
 
 		$plugin = TurretsPlugin::getInstance();
 		if(($turret = $plugin->getTurretFromHash($this->hash)) !== null){
 			$this->setTurret($turret);
 			if($turret->getEntity() === null){
-				echo "Setting entity id...\n";
 				$turret->setEntity($this->getId());
 			}
 		}
@@ -98,18 +81,14 @@ class EntityTurret extends Minecart{
 		$this->pitch = $pitch % 360;
 	}
 
-	public function onUpdate($currentTick){
-		/*if ($this->getRollingAmplitude() > 0) {
-			$this->setRollingAmplitude($this->getRollingAmplitude() - 1); // Decompiled server code with MCP
-		}
+	public function entityBaseTick(int $tickDiff = 1) : bool{
+		$hasUpdate = parent::entityBaseTick($tickDiff);
 
-		if ($this->getDamage() > 0) {
-		  $this->setDamage($this->getDamage() - 1);
-		}*/
-		if($currentTick - $this->lastTick < self::TASK_RUN_INTERVAL){
+		$this->tickSum += $tickDiff;
+		if($this->tickSum < self::TASK_RUN_INTERVAL){
 			return true;
 		}
-		$this->lastTick = $currentTick;
+		$this->tickSum = 0;
 
 		if($this->getTurret() === null){
 			return true;
@@ -118,17 +97,9 @@ class EntityTurret extends Minecart{
 		if($this->y < -64.0){
 			$this->kill();
 		}
+		$this->motion = $this->pivot->subtract($this)->multiply(0.1);
 
-		$hasUpdate = parent::onUpdate($currentTick);
-
-		$this->lastX = $this->x;
-		$this->lastY = $this->y;
-		$this->lastZ = $this->z;
-
-		$this->motionX = (($this->pivotX - $this->x) * 0.1);
-		$this->motionY = (($this->pivotY - $this->y) * 0.1);
-		$this->motionZ = (($this->pivotZ - $this->z) * 0.1);
-		$this->move($this->motionX, $this->motionY, $this->motionZ);
+		$this->move($this->motion->x, $this->motion->y, $this->motion->z);
 
 		$upgradeTier = $this->getTurret()->getUpgradeTier();
 
@@ -155,7 +126,7 @@ class EntityTurret extends Minecart{
 			if($this->canSee($target)){
 				if($target->isAlive()){
 					$targetPos = $target->add(0, $target->getEyeHeight(), 0);
-					$distanceSquared = $this->pivotVector->distanceSquared($targetPos);
+					$distanceSquared = $this->pivot->distanceSquared($targetPos);
 					if($distanceSquared <= $range * $range){
 						$this->lookAt($targetPos);
 						$lockedOn = true;
@@ -200,10 +171,10 @@ class EntityTurret extends Minecart{
 	}
 
 	public function findTarget(float $range){
-		$nmsEntities = $this->level->getNearbyEntities($this->boundingBox->grow($range, $range, $range), $this);
+		$nmsEntities = $this->level->getNearbyEntities($this->boundingBox->expandedCopy($range, $range, $range), $this);
 		$targets = [];
 		foreach($nmsEntities as $nmsEntity){
-			if($nmsEntity !== $this){
+			if($nmsEntity->getId() !== $this->getId()){
 				if($this->distanceSquared($nmsEntity) <= $range * $range){
 					$entity = $nmsEntity;
 					if($entity instanceof Living){
@@ -252,52 +223,55 @@ class EntityTurret extends Minecart{
 		return $overallAssessment;
 	}
 
-	private function canSee(Entity $nmsEntity) : bool{
-		$start = microtime(true);
-		$result = RayTraceUtils::rayTraceBlocks($this->level, $this->add(0, 0.595, 0), $nmsEntity->add(0, $nmsEntity->getEyeHeight(), 0), false, true, true) === null;
-		var_dump('Ray trace: ' . number_format((microtime(true) - $start) * 1000, 6) . ' millisecs');
+	private function canSee(Entity $entity) : bool{
+		$startTime = microtime(true);
+
+		$result = true;
+
+		$start = $this->add(0, 0.595, 0);
+		$target = $entity->add(0, $entity->getEyeHeight(), 0);
+		foreach(VoxelRayTrace::betweenPoints($start, $target) as $vector) {
+			$block = $this->level->getBlockAt($vector->x, $vector->y, $vector->z);
+			if ($block->getId() != 0) {
+				$result = false;
+				break;
+			}
+		}
+		//var_dump('Ray trace: ' . number_format((microtime(true) - $startTime) * 1000, 6) . ' msec');
 		return $result;
 	}
 
 	public function fireArrow(Living $target){
-        /*$d0 = $target->x - $this->x;
-        $d1 = $target->getBoundingBox()->minY + ($target->getEyeHeight() / 3.0)$target->y - $this->y;
-        $d2 = $target->z - $this->z;
-        $d3 = sqrt($d0 * $d0 + $d2 * $d2);*/
+		$nbt = Entity::createBaseNBT(
+			$this->add(0, 1, 0)
 
-		$nbt = new CompoundTag("", [
-			new ListTag("Pos", [
-				new DoubleTag("", $this->x),
-				new DoubleTag("", $this->y + 1),
-				new DoubleTag("", $this->z)
-			]),
-			new ListTag("Motion", [
-				new DoubleTag("", 0),
-				new DoubleTag("", 0),
-				new DoubleTag("", 0)
-			]),
-			new ListTag("Rotation", [
-				new FloatTag("", 0),
-				new FloatTag("", 0)
-			]),
-			new ShortTag("Fire", 0)
-		]);
+		);
+		$nbt->setShort("Fire", 0);
+
 		$arrow = Entity::createEntity('TurretProjectile', $this->getLevel(), $nbt, $this, true);
 		if($arrow instanceof TurretProjectile){
 			$arrow->target($arrow->add(0, 1, 0), $target->add(0, $target->getEyeHeight(), 0), 5);
 			$arrow->spawnToAll();
-			//$arrow->setThrowableHeading($d0, $d1 + $d3 * 0.20000000298023224, $d2, 1.6);
-			//$arrow->setMotion($arrow->getMotion()->multiply(3));
 		}
 		return true;
 	}
 
-	public function saveNBT(){
-		parent::saveNBT();
-		$this->namedtag->Hash = new StringTag('Hash', (string) $this->hash);
+	public function getHash() : string {
+		return $this->hash;
+	}
 
-		$this->namedtag->pivotX = new DoubleTag("pivotX", $this->pivotX);
-		$this->namedtag->pivotY = new DoubleTag("pivotY", $this->pivotY);
-		$this->namedtag->pivotZ = new DoubleTag("pivotZ", $this->pivotZ);
+	public function getPivot() : Vector3 {
+		return $this->pivot;
+	}
+
+	public function saveNBT() : CompoundTag {
+		$nbt = parent::saveNBT();
+		$nbt->setString("Hash", (string) $this->hash, true);
+		$nbt->setTag(new ListTag("Pivot", [
+			new DoubleTag("", $this->pivot->x),
+			new DoubleTag("", $this->pivot->y),
+			new DoubleTag("", $this->pivot->z),
+		]), true);
+		return $nbt;
 	}
 }

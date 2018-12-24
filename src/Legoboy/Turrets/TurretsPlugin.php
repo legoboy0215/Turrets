@@ -14,6 +14,7 @@ use pocketmine\block\Block;
 use pocketmine\entity\Entity;
 use pocketmine\level\Level;
 use pocketmine\level\Position;
+use pocketmine\math\Vector3;
 use pocketmine\Player;
 use pocketmine\plugin\PluginBase;
 
@@ -125,8 +126,7 @@ class TurretsPlugin extends PluginBase{
 	 * @return Turret|null
 	 */
 	public function getTurret(Position $postLocation){
-		$hash = (string) Level::blockHash($postLocation->getX(), $postLocation->getY(), $postLocation->getZ());
-		return $this->turrets[$hash] ?? null;
+		return $this->turrets[Turret::hash($postLocation)] ?? null;
 	}
 
 	/**
@@ -138,7 +138,7 @@ class TurretsPlugin extends PluginBase{
 	}
 
 	public function addTurret(Position $position, string $player){
-		$hash = (string) Level::blockHash($position->getX(), $position->getY(), $position->getZ());
+		$hash = Turret::hash($position);
 
 		if(!isset($this->turrets[$hash])){
 			$this->turrets[$hash] = $turret = new Turret($position, $player, $this);
@@ -148,14 +148,11 @@ class TurretsPlugin extends PluginBase{
 
 	public function removeTurret(Turret $turret, bool $despawn = true){
 		if($despawn) $turret->despawn();
-		$location = $turret->getLocation();
-		$hash = (string) Level::blockHash($location->getX(), $location->getY(), $location->getZ());
-		unset($this->turrets[$hash]);
+		unset($this->turrets[Turret::hash($turret->getPosition())]);
 	}
 
-	public function canBuildTurret(Position $location) : bool{
-		$hash = (string) Level::blockHash($location->getX(), $location->getY(), $location->getZ());
-		return !isset($this->turrets[$hash]);
+	public function canBuildTurret(Vector3 $position) : bool{
+		return !isset($this->turrets[Turret::hash($position)]);
 	}
 
 	public function saveTurrets(){
@@ -169,8 +166,7 @@ class TurretsPlugin extends PluginBase{
 		}
 		/** @var Turret $turret */
 		foreach($dbTurrets as $turret){
-			$location = $turret->getLocation();
-			$hash = (string) Level::blockHash($location->getX(), $location->getY(), $location->getZ());
+			$hash = Turret::hash($turret->getPosition());
 			if(!isset($this->turrets[$hash])){
 				$this->turrets[$hash] = $turret;
 			}
@@ -210,6 +206,8 @@ class TurretsPlugin extends PluginBase{
 				return "Turret destroyed!";
 			case TurretsMessage::TURRET_UPGRADED:
 				return "Turret upgraded!";
+			case TurretsMessage::TURRET_DOWNGRADED:
+				return "Turret downgraded!";
 		}
 		return null;
 	}

@@ -56,10 +56,11 @@ class YAMLTurretDatabase implements TurretDatabase{
 		$section = [];
 		$id = 0;
 		foreach($turrets as $turret){
+			$position = $turret->getPosition();
 			$section["t$id"] = [
-				'x' => $turret->getX(),
-				'y' => $turret->getY(),
-				'z' => $turret->getZ(),
+				'x' => $position->getX(),
+				'y' => $position->getY(),
+				'z' => $position->getZ(),
 				'level' => $turret->getLevel()->getName(),
 				'owner' => $turret->getOwnerName()
 			];

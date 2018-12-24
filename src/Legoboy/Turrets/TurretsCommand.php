@@ -9,6 +9,7 @@ use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\command\PluginIdentifiableCommand;
 use pocketmine\Player;
+use pocketmine\plugin\Plugin;
 
 class TurretsCommand extends Command implements PluginIdentifiableCommand{
 
@@ -20,7 +21,7 @@ class TurretsCommand extends Command implements PluginIdentifiableCommand{
 		$this->plugin = $plugin;
 	}
 
-	public function getPlugin(){
+	public function getPlugin() : Plugin {
 		return $this->plugin;
 	}
 

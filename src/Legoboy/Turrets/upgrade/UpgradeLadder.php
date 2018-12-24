@@ -24,8 +24,8 @@ class UpgradeLadder{
 
 	}
 
-	public function getUpgradeTier(int $block) : UpgradeTier{
-		return $this->upgradeTiers[$block] ?? $this->defaultUpgradeTier;
+	public function getUpgradeTier(int $blockId) : UpgradeTier{
+		return $this->upgradeTiers[$blockId] ?? $this->defaultUpgradeTier;
 	}
 
 	public function loadUpgradeTiers(Config $config, PluginLogger $logger){
@@ -81,5 +81,6 @@ class UpgradeLadder{
 			$logger->warning("No default upgrade tier, creating one.");
 			$this->defaultUpgradeTier = new UpgradeTier(40, 10.0, 3.0);
 		}
+		var_dump($this->upgradeTiers);
 	}
 }

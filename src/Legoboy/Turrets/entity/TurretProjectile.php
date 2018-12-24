@@ -2,50 +2,40 @@
 
 namespace Legoboy\Turrets\entity;
 
+use pocketmine\entity\Entity;
 use pocketmine\entity\projectile\Arrow;
+use pocketmine\level\Level;
 use pocketmine\math\Vector3;
+use pocketmine\nbt\tag\CompoundTag;
 
 class TurretProjectile extends Arrow{
 
-	protected $gravity = 0;
-	protected $drag = 0;
+	protected $gravity = 0.0;
+	protected $drag = 0.0;
 
-	protected $damage = 2;
+	protected $damage = 10.0;
 
-	public function setThrowableHeading(float $x, float $y, float $z, float $velocity){
-		$f = sqrt($x * $x + $y * $y + $z * $z);
-		$x = $x / $f;
-		$y = $y / $f;
-		$z = $z / $f;
-		$x = $x * $velocity;
-		$y = $y * $velocity;
-		$z = $z * $velocity;
-		$this->motionX = $x;
-		$this->motionY = $y;
-		$this->motionZ = $z;
+	public function __construct(Level $level, CompoundTag $nbt, ?Entity $shootingEntity = null, bool $critical = false){
+		parent::__construct($level, $nbt, $shootingEntity, $critical);
+		$this->setPickupMode(self::PICKUP_NONE);
+		$this->setPunchKnockback(0);
+		$this->setBaseDamage($this->damage);
+	}
 
-		$f1 = sqrt($x * $x + $z * $z);
-		$this->yaw = (float) (atan2($x, $z) * (180 / M_PI));
-		$this->pitch = (float) (atan2($y, $f1) * (180 / M_PI));
+	public function entityBaseTick(int $tickDiff = 1) : bool {
+		$hasUpdate = parent::entityBaseTick($tickDiff);
 
-		$this->lastYaw = $this->yaw;
-		$this->lastPitch = $this->pitch;
+		if($this->isCollided && $this->collideTicks > 100){
+			$this->flagForDespawn();
+			$hasUpdate = true;
+		}
+		return $hasUpdate;
 	}
 
 	public function target(Vector3 $origin, Vector3 $target, float $velocity = 1.6){
-		/*$deltaX = $target->x - $origin->x;
-		$deltaY = $target->y - $origin->y;
-		$deltaZ = $target->z - $origin->z;
-
-		$length = sqrt($deltaX ** 2 + $deltaY ** 2 + $deltaZ ** 2);
-
-		$unitX = $deltaX / $length;
-		$unitY = $deltaY / $length;
-		$unitZ = $deltaZ / $length;*/
-
 		$dirVector = $target->subtract($origin);
 
-		$unit = $dirVector->normalize(); // Unit vector of the velocity
+		$unit = $dirVector->normalize(); // Unit vector of the direction
 
 		$yaw = atan2($unit->z, $unit->x); // https://stackoverflow.com/a/12011762/5716711  atan2 = from all 4 quadrants
 		$pitch = asin($unit->y);
@@ -56,41 +46,11 @@ class TurretProjectile extends Arrow{
 
 		$yaw += 90;
 
-		$this->motionX = $unit->x * $velocity;
-		$this->motionY = $unit->y * $velocity;
-		$this->motionZ = $unit->z * $velocity;
+		$this->motion = $unit->multiply($velocity);
 
 		$this->yaw = (float) $yaw;
 		$this->pitch = (float) $pitch;
 
-		$this->lastMotionX = $this->motionX;
-		$this->lastMotionY = $this->motionY;
-		$this->lastMotionZ = $this->motionZ;
-		$this->lastYaw = $this->yaw;
-		$this->lastPitch = $this->pitch;
-	}
-
-	public function onUpdate($currentTick){
-		if($this->closed){
-			return false;
-		}
-
-		$this->timings->startTiming();
-
-		$hasUpdate = parent::onUpdate($currentTick);
-
-		/*if($this->onGround){
-			$this->close();
-			$hasUpdate = true;
-		}*/
-
-		if($this->age > 1200){
-			$this->close();
-			$hasUpdate = true;
-		}
-
-		$this->timings->stopTiming();
-
-		return $hasUpdate;
+		$this->lastMotion = $this->motion->asVector3();
 	}
 }
