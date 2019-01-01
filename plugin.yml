@@ -1,7 +1,7 @@
 name: Turrets
-description: "A complex turret plugin whose fate is undetermined"
+description: "A complex turret plugin that is WIP"
 author: Legoboy
 main: Legoboy\Turrets\TurretsPlugin
 version: "0.2"
-api: [4.0.0]
+api: [3.0.0]
 load: POSTWORLD

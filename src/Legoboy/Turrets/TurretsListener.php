@@ -20,7 +20,7 @@ use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\item\ItemIds;
 use pocketmine\level\Position;
-use pocketmine\math\Facing;
+use pocketmine\math\Vector3;
 use pocketmine\Player;
 use pocketmine\utils\TextFormat;
 
@@ -43,7 +43,7 @@ class TurretsListener implements Listener{
 	 * @throws \InvalidStateException
 	 */
 	public function onPlayerInteract(PlayerInteractEvent $event){
-		if(($event->getAction() === PlayerInteractEvent::RIGHT_CLICK_BLOCK) && ($event->getFace() === Facing::UP)){
+		if(($event->getAction() === PlayerInteractEvent::RIGHT_CLICK_BLOCK) && ($event->getFace() === Vector3::SIDE_UP)){
 			$player = $event->getPlayer();
 
 			if (isset($this->interactTimes[$player->getId()]) && (time() - $this->interactTimes[$player->getId()]) < 1) {

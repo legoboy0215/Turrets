@@ -12,7 +12,6 @@ use Legoboy\Turrets\targeting\TargetAssessor;
 use Legoboy\Turrets\upgrade\UpgradeLadder;
 use pocketmine\block\Block;
 use pocketmine\entity\Entity;
-use pocketmine\level\Level;
 use pocketmine\level\Position;
 use pocketmine\math\Vector3;
 use pocketmine\Player;

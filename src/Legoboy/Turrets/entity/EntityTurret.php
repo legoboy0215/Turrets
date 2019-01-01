@@ -10,7 +10,6 @@ use pocketmine\entity\Entity;
 use pocketmine\entity\Living;
 use pocketmine\math\Vector3;
 use pocketmine\math\VoxelRayTrace;
-use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\nbt\tag\DoubleTag;
 use pocketmine\nbt\tag\ListTag;
 use pocketmine\nbt\tag\StringTag;
@@ -46,14 +45,14 @@ class EntityTurret extends Minecart {
 	/** @var int */
 	private $tickSum = 0;
 
-	protected function initEntity(CompoundTag $nbt) : void {
-		parent::initEntity($nbt);
-		if(!$nbt->hasTag("Pivot", ListTag::class) || !$nbt->hasTag("Hash", StringTag::class)){
+	protected function initEntity() : void {
+		parent::initEntity();
+		if(!$this->namedtag->hasTag("Pivot", ListTag::class) || !$this->namedtag->hasTag("Hash", StringTag::class)){
 			throw new \InvalidArgumentException('NBT tag is invalid!');
 		}
-		$this->hash = (string) $nbt->getString("Hash");
+		$this->hash = (string) $this->namedtag->getString("Hash");
 
-		$pivot = $nbt->getListTag("Pivot");
+		$pivot = $this->namedtag->getListTag("Pivot");
 		$this->pivot = new Vector3(...$pivot->getAllValues());
 
 		$this->setPosition($this->pivot);
@@ -264,14 +263,13 @@ class EntityTurret extends Minecart {
 		return $this->pivot;
 	}
 
-	public function saveNBT() : CompoundTag {
-		$nbt = parent::saveNBT();
-		$nbt->setString("Hash", (string) $this->hash, true);
-		$nbt->setTag(new ListTag("Pivot", [
+	public function saveNBT() : void {
+		parent::saveNBT();
+		$this->namedtag->setString("Hash", (string) $this->hash, true);
+		$this->namedtag->setTag(new ListTag("Pivot", [
 			new DoubleTag("", $this->pivot->x),
 			new DoubleTag("", $this->pivot->y),
 			new DoubleTag("", $this->pivot->z),
 		]), true);
-		return $nbt;
 	}
 }
